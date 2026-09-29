@@ -20,10 +20,9 @@ Home: `gh:yeet-src/agentcap`. Clone it and run `make up` — see **Setup**.
 ## How it watches agents
 
 The BPF side (`src/bpf/agentcap.bpf.c`) is **policy-free**: the collector
-pushes comm prefixes from JavaScript into a kernel **LPM trie** at startup,
-so the agent set lives in one JS list (`DEFAULT_AGENTS` in
-`src/collector.js`) and matching is a single loop-free trie lookup with no
-per-agent cost. The word-boundary rule is encoded in the data — each prefix
+reads the prefix list from `src/agents.txt` and pushes it into a kernel
+**LPM trie** at startup, so matching is a single loop-free trie lookup with
+no per-agent cost. The word-boundary rule is encoded in the data — each prefix
 is inserted as `name\0` / `name-` / `name_` / `name.` — so "pi" catches
 `pi`, not `pipewire`. A task is tracked when its comm matches the trie or
 when a tracked task forks it — each tree keeps the
@@ -88,14 +87,33 @@ alive but the collector worker is not.
 
 It works out of the box: the common agents — OpenClaw, Claude Code, Codex,
 Gemini, aider, opencode, goose, cline, continue, cursor, qwen, crush, amp,
-grok, omp, pi — are pre-filled in [`src/agents.js`](src/agents.js). Edit that
-one list to change what's watched.
+grok, omp, pi — are pre-filled in [`src/agents.txt`](src/agents.txt), one
+comm prefix per line. Edit that file to change what's watched.
 
-### 0. Prerequisites (check once)
+### 0. Install yeet and log in
 
 ```sh
-yeet status                       # must print "Status: Ok."  (start the daemon if not)
-cat /sys/kernel/security/lsm      # must contain "bpf"        (BPF-LSM enabled)
+curl -fsSL https://yeet.cx | sh    # installs the `yeet` CLI and the yeetd daemon
+yeet login                         # authenticate this host
+yeet status                        # must print "Status: Ok."
+```
+
+**What is yeetd?** yeet has two parts: the `yeet` CLI you run, and **yeetd**,
+a privileged background daemon (a systemd service) that actually does the
+work — it loads and attaches eBPF programs, runs your JavaScript in V8
+isolates, keeps services alive, and serves the system graph. The CLI just
+talks to it over a local socket (`/run/yeet/yeetd.sock`). agentcap's probe
+and collector run *inside* yeetd, which is why it needs the privileges to
+load BPF. If `yeet status` can't reach it, start the daemon:
+
+```sh
+sudo systemctl start yeetd         # and: sudo systemctl enable yeetd  (start on boot)
+```
+
+### 1. Prerequisites (check once)
+
+```sh
+cat /sys/kernel/security/lsm      # must contain "bpf"   (BPF-LSM enabled)
 grep CONFIG_BPF_LSM /boot/config-$(uname -r)   # CONFIG_BPF_LSM=y
 docker version >/dev/null && echo docker-ok    # for the Prometheus/Grafana stack
 ```
@@ -107,7 +125,7 @@ docker version >/dev/null && echo docker-ok    # for the Prometheus/Grafana stac
   the yeet toolchain vendors them.
 - Docker + Python 3 for the dashboard stack.
 
-### 1. One-shot
+### 2. One-shot
 
 ```sh
 make up
@@ -121,7 +139,7 @@ done. Then:
 - **Raw metrics:** `make metrics` (or `curl -s http://127.0.0.1:9464/metrics`)
 - **Tear down:** `make down`
 
-### 2. Or step by step
+### 3. Or step by step
 
 ```sh
 make                 # compile bin/probe.bpf.o
@@ -142,8 +160,9 @@ request over the console portal; **web** binds `127.0.0.1:9464` and mounts
 
 ### Changing the agent set
 
-Edit `src/agents.js` and `make deploy`. Or override for one run without
-editing anything:
+Edit [`src/agents.txt`](src/agents.txt) — one comm prefix per line, `#`
+comments and blank lines ignored — then `make deploy`. Or override for one
+run without editing anything:
 
 ```sh
 make dev AGENTS=openclaw,claude,mybot   # standalone, live dump, no HTTP
@@ -187,11 +206,13 @@ boilerplate and the per-agent color mapping stay consistent.
 
 ```
 src/bpf/agentcap.bpf.c   the probe: sched tracepoints + LSM + fexit
-src/collector.js         shared worker: fills kernel maps from JS, owns the
+src/agents.txt           the tracked agent list (one comm prefix per line)
+src/agents.js            parses agents.txt into the prefix array
+src/collector.js         shared worker: fills kernel maps, owns the
                          Telemetry registry, polls counters, serve()s scrapes
 src/scrape.js            per-request /metrics renderer (console portal)
 src/main.js              eager keeper — holds the worker (and probe) alive
 service.toml             yeet service: units, web server, /metrics route
 deploy/                  prometheus.yml, docker-compose, grafana provisioning
-build/, Makefile         vendored BPF toolchain (see the scaffold docs)
+Makefile                 build + run/deploy lifecycle (make up, deploy, …)
 ```

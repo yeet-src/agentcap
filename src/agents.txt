@@ -1,0 +1,26 @@
+# Agents agentcap tracks, out of the box — one comm PREFIX per line.
+# Edit this file (add / remove a line) and re-deploy: `make deploy`.
+#
+# Matching is word-boundary aware, so "pi" matches `pi` and `pi-agent` but
+# never `pipewire`. A tracked process's whole tree is attributed to it, so a
+# bash/node/curl spawned by an agent is counted under that agent.
+# Blank lines and lines starting with # are ignored. Override for one run
+# with `make dev AGENTS=a,b,c` (no need to edit this file).
+
+# — coding agents / CLIs —
+openclaw      # OpenClaw gateway + agents
+claude        # Claude Code
+codex         # OpenAI Codex CLI
+gemini        # Gemini CLI
+aider         # aider
+opencode      # opencode
+goose         # Block goose
+cline         # Cline
+continue      # Continue
+cursor        # Cursor agent / CLI
+qwen          # qwen-code
+crush         # Charm crush
+amp           # Sourcegraph amp
+grok          # grok CLI
+omp           # omp
+pi            # pi
