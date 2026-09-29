@@ -1,0 +1,197 @@
+# agentcap
+
+A Prometheus exporter for **AI-agent activity** — OpenClaw, Claude Code,
+Codex, Gemini, aider, omp, pi, grok, opencode, or any set you configure —
+captured in-kernel with eBPF and served by a [yeet](https://yeet.cx)
+service. A provisioned Grafana dashboard rides along.
+
+Home: `gh:yeet-src/agentcap`. Clone it and run `make up` — see **Setup**.
+
+```
+ kernel (eBPF)                yeet service "agentcap"              observability
+┌────────────────────┐   ┌──────────────────────────────────┐   ┌──────────────┐
+│ tracepoints (sched)│   │ collector.js  (shared worker)    │   │ Prometheus   │
+│ lsm/socket_*       ├──▶│  BPF maps → Telemetry registry   │◀──┤  :9464/metrics
+│ fexit/vfs_*,recvmsg│   │ main.js       keeps it alive     │   │ Grafana      │
+│  — zero kprobes    │   │ scrape.js     per-request render │   │  :3000       │
+└────────────────────┘   └──────────────────────────────────┘   └──────────────┘
+```
+
+## How it watches agents
+
+The BPF side (`src/bpf/agentcap.bpf.c`) is **policy-free**: the collector
+pushes comm prefixes from JavaScript into a kernel **LPM trie** at startup,
+so the agent set lives in one JS list (`DEFAULT_AGENTS` in
+`src/collector.js`) and matching is a single loop-free trie lookup with no
+per-agent cost. The word-boundary rule is encoded in the data — each prefix
+is inserted as `name\0` / `name-` / `name_` / `name.` — so "pi" catches
+`pi`, not `pipewire`. A task is tracked when its comm matches the trie or
+when a tracked task forks it — each tree keeps the
+identity of the prefix that rooted it, so a `bash` exec'd by openclaw is
+counted as `agent="openclaw"`. Roots that predate the probe (a running
+gateway) are adopted on their first context switch, fork, or socket/file op.
+
+**Attach types: tracepoints, LSM hooks, and fexit trampolines — no
+kprobes.** LSM (`socket_connect`, `socket_sendmsg`) carries exact
+before-the-fact semantics and is a stable security API; fexit supplies what
+LSM never sees: actual received bytes (`sock_recvmsg`) and actual file I/O
+(`vfs_read`/`vfs_write`). LSM programs need `CONFIG_BPF_LSM=y` and `bpf` in
+the boot `lsm=` list (Fedora ships both).
+
+Egress is split by rate: rare lifecycle events (fork/exec/exit, with names)
+stream over a ring buffer; high-rate sums (CPU ns, socket and file bytes)
+live in a `{agent, slot}`-keyed hash the collector polls once a second.
+
+### Audit: domains and destination ports
+
+For security review, the probe also streams, per agent, the **destination
+port** of every inet connect and the **domain** of every name lookup it can
+see. To keep the kernel side verifier-safe, the probe only filters and
+copies raw bytes; the collector parses them in JavaScript, where loops are
+free. Two lookup paths are covered:
+
+- **Port-53 DNS** — direct resolver traffic (c-ares, aiodns, `dig`): the
+  DNS packet head is shipped and the qname decoded from label format.
+- **nss-resolved varlink** — glibc `getaddrinfo` on systemd hosts resolves
+  over a unix socket, never touching port 53. The probe recognizes the
+  varlink `ResolveHostname` JSON on tracked tasks' unix sends and lifts the
+  name.
+
+**DoH/DoT are invisible** — an agent resolving over its own HTTPS/TLS
+channel shows only as a `:443` connect, not a domain. That's a real limit
+of watching from the kernel, documented rather than papered over.
+
+## Metrics
+
+All labeled `agent`; execs also carry `comm` (the tool that ran, capped at
+50 distinct values per agent, then folded into `other`).
+
+| Metric | Type | Meaning |
+|---|---|---|
+| `agentcap_tasks` | gauge | tracked tasks alive per agent tree |
+| `agentcap_execs_total` | counter | binaries exec'd (tools the agent ran) |
+| `agentcap_forks_total` / `agentcap_exits_total` | counter | process churn |
+| `agentcap_cpu_seconds_total` | counter | on-CPU time of the tree |
+| `agentcap_net_connects_total` | counter | inet socket connects |
+| `agentcap_net_transmit_bytes_total` / `..._receive_bytes_total` | counter | inet socket traffic (unix sockets excluded) |
+| `agentcap_file_read_bytes_total` / `..._write_bytes_total` | counter | actual VFS bytes |
+| `agentcap_net_connections_total` | counter | inet connects by destination `port` — the audit view |
+| `agentcap_dns_queries_total` | counter | lookups by `domain` (see DNS note below) |
+| `agentcap_last_activity_timestamp_seconds` | gauge | unix time of last lifecycle event |
+| `agentcap_probe_up` | gauge | BPF object loaded and attached |
+| `agentcap_events_dropped_total` | counter | ring-buffer backpressure |
+
+`yeet_worker_up` is prepended by the renderer: 0 means the scrape route is
+alive but the collector worker is not.
+
+## Setup
+
+It works out of the box: the common agents — OpenClaw, Claude Code, Codex,
+Gemini, aider, opencode, goose, cline, continue, cursor, qwen, crush, amp,
+grok, omp, pi — are pre-filled in [`src/agents.js`](src/agents.js). Edit that
+one list to change what's watched.
+
+### 0. Prerequisites (check once)
+
+```sh
+yeet status                       # must print "Status: Ok."  (start the daemon if not)
+cat /sys/kernel/security/lsm      # must contain "bpf"        (BPF-LSM enabled)
+grep CONFIG_BPF_LSM /boot/config-$(uname -r)   # CONFIG_BPF_LSM=y
+docker version >/dev/null && echo docker-ok    # for the Prometheus/Grafana stack
+```
+
+- A BTF-capable Linux kernel with **BPF-LSM on** (`CONFIG_BPF_LSM=y` and `bpf`
+  in the boot `lsm=` list — Fedora ships this). The LSM + fexit programs
+  need it.
+- `clang` + `bpftool` for the BPF build (`bpftool` is often in `/usr/sbin`);
+  the yeet toolchain vendors them.
+- Docker + Python 3 for the dashboard stack.
+
+### 1. One-shot
+
+```sh
+make up
+```
+
+That builds the probe, imports and starts the yeet service on
+`127.0.0.1:9464`, and brings up Prometheus + Grafana. It prints the URLs when
+done. Then:
+
+- **Dashboard:** <http://localhost:3000/d/agentcap/agent-activity>
+- **Raw metrics:** `make metrics` (or `curl -s http://127.0.0.1:9464/metrics`)
+- **Tear down:** `make down`
+
+### 2. Or step by step
+
+```sh
+make                 # compile bin/probe.bpf.o
+sudo make veristat   # optional: verify every program loads on this kernel
+make deploy          # (re)import + start the service   → "deployed."
+make metrics         # expect: agentcap_probe_up 1, agentcap_tasks{...}, …
+make obs-up          # Prometheus :9091, Grafana :3000 (dashboard auto-provisioned)
+```
+
+`make deploy` tears down any previous instance and re-imports — it's also how
+you pick up edits to `src/` (the daemon copies unit scripts at import time).
+
+The service (`service.toml`) is three units: **keeper** (eager) holds the
+collector shared worker — and the BPF probe and metric registry inside it —
+alive; **scrape** (lazy, per-connection) renders one exposition document per
+request over the console portal; **web** binds `127.0.0.1:9464` and mounts
+`/metrics`.
+
+### Changing the agent set
+
+Edit `src/agents.js` and `make deploy`. Or override for one run without
+editing anything:
+
+```sh
+make dev AGENTS=openclaw,claude,mybot   # standalone, live dump, no HTTP
+```
+
+## Prometheus + Grafana
+
+`make obs-up` runs `deploy/docker-compose.yml` (Prometheus on **:9091** —
+9090 is often Cockpit's — and Grafana on **:3000**).
+
+Both run with host networking so Prometheus can reach the loopback-only
+exporter. The **Agent Activity** dashboard (`deploy/grafana/dashboards/`)
+is provisioned automatically and filterable by agent, with a stable color
+per agent across every panel. It has four sections:
+
+- **Overview** — hero stats, tracked tasks, tool-exec rates, a "which agent
+  ran what" table, top tools, CPU / network / file-I/O / churn timeseries.
+- **Audit — who talked to what** — per-agent domain and destination-port
+  tables (ports classified and color-coded: HTTPS/DNS green, SSH/SMTP
+  amber, telnet/RDP red, unknown neutral), plus DNS and connection rates.
+- **Activity mix** — CPU-share and egress-share donuts, a tool-launch bar
+  chart, an active/idle **state-timeline** across agents, and per-agent CPU
+  gauges — varied forms for a fast read.
+- **Agent detail — $agent** — a repeated, collapsed row per selected agent
+  with its own tools, lifecycle, CPU/tasks, network, domains and ports.
+
+The dashboard is generated by `deploy/grafana/gen-dashboard.py` (edit the
+Python, rerun it, Grafana's file provider reloads within 30s) so the panel
+boilerplate and the per-agent color mapping stay consistent.
+
+## CI
+
+- `.github/workflows/ci.yml` — BPF object builds, JS syntax, `service.toml`
+  parses, `promtool check config`, dashboard JSON lint, compose config.
+- `.github/workflows/kernel-matrix.yml` — boots 6.1 / 6.6 / 6.12 / bpf-next
+  in VMs and runs veristat against `bin/probe.bpf.o`; a rejection on an old
+  kernel is the signal of the minimum supported kernel (LSM + fexit programs
+  need BTF and `CONFIG_BPF_LSM`). Same check locally: `make veristat-matrix`.
+
+## Layout
+
+```
+src/bpf/agentcap.bpf.c   the probe: sched tracepoints + LSM + fexit
+src/collector.js         shared worker: fills kernel maps from JS, owns the
+                         Telemetry registry, polls counters, serve()s scrapes
+src/scrape.js            per-request /metrics renderer (console portal)
+src/main.js              eager keeper — holds the worker (and probe) alive
+service.toml             yeet service: units, web server, /metrics route
+deploy/                  prometheus.yml, docker-compose, grafana provisioning
+build/, Makefile         vendored BPF toolchain (see the scaffold docs)
+```

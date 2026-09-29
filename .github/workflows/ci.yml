@@ -1,0 +1,77 @@
+name: ci
+
+# Fast per-push checks; the heavyweight cross-kernel verifier gate lives in
+# kernel-matrix.yml.
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bpf:
+    name: build BPF object
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: make bpf
+        run: make bpf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe.bpf.o
+          path: bin/probe.bpf.o
+
+  js:
+    name: JS syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: node --check src/*.js
+        run: |
+          set -euo pipefail
+          for f in src/*.js; do node --check "$f"; done
+
+  config:
+    name: service + deploy configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: service.toml parses
+        run: python3 -c "import tomllib,sys; tomllib.load(open('service.toml','rb')); print('service.toml ok')"
+
+      - name: promtool check config
+        run: |
+          docker run --rm -v "$PWD/deploy:/deploy:ro" \
+            --entrypoint promtool prom/prometheus:v2.53.0 \
+            check config /deploy/prometheus.yml
+
+      - name: dashboard JSON sanity
+        run: |
+          set -euo pipefail
+          f=deploy/grafana/dashboards/agent-activity.json
+          jq -e '.uid == "agentcap"' "$f" >/dev/null
+          jq -e '.panels | length >= 10' "$f" >/dev/null
+          # every query (top-level and inside repeated rows) targets our namespace
+          jq -e '[.panels[] | select(.type!="row") | .targets[]?.expr]
+                 + [.panels[].panels[]?.targets[]?.expr]
+                 | all(test("agentcap_"))' "$f" >/dev/null
+          echo "dashboard ok: $(jq -r '.panels | length' "$f") panels, \
+            $(jq -r '[.panels[].type] | unique | length' "$f") panel types"
+
+      - name: dashboard matches generator
+        run: |
+          set -euo pipefail
+          f=deploy/grafana/dashboards/agent-activity.json
+          python3 deploy/grafana/gen-dashboard.py
+          git diff --exit-code -- "$f" \
+            || { echo "::error::$f is stale — rerun deploy/grafana/gen-dashboard.py"; exit 1; }
+
+      - name: compose config renders
+        run: docker compose -f deploy/docker-compose.yml config -q

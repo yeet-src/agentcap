@@ -1,0 +1,28 @@
+# agentcap — Prometheus exporter for AI-agent activity, as a yeet service.
+#
+#   yeet service import service.toml --now
+#   curl http://127.0.0.1:9464/metrics
+#
+# keeper (eager) holds the collector shared worker — and the BPF probe +
+# metric registry inside it — alive; scrape (lazy, per-connection) renders
+# one exposition document per request, streamed as the response body via
+# the console portal.
+alias = "agentcap"
+restart = "always"
+enabled = true
+
+[units.keeper]
+isolate = "./src/main.js"
+
+[units.scrape]
+isolate = "./src/scrape.js"
+lazy = true
+
+[units.web]
+web-server = "http://127.0.0.1:9464"
+
+[units.web.routes."/metrics"]
+target = "scrape"
+portal = "console"
+tenancy = "per-connection"
+description = "Prometheus exposition of AI-agent activity (agentcap)"

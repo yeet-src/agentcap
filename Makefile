@@ -1,0 +1,143 @@
+# Build and run the agentcap exporter.
+#
+# Build:
+#   make          — compile the BPF object (bin/probe.bpf.o)
+#   make veristat — verifier check on this kernel (needs sudo)
+#   make clean    — remove build artifacts
+#
+# Run the exporter (yeet service on 127.0.0.1:9464):
+#   make deploy   — build + (re)import the service and start it
+#   make start / stop / restart / status / remove
+#   make metrics  — curl the /metrics endpoint
+#   make dev      — run the collector standalone (live dump, no HTTP)
+#
+# Observability stack (Prometheus + Grafana in Docker):
+#   make obs-up / obs-down     — bring the stack up / down
+#   make dashboard             — regenerate the Grafana dashboard JSON
+#
+# One-shot:
+#   make up       — build + deploy + obs-up, then print the URLs
+#   make down     — stop the stack and the service
+#
+# This is the build *frontend*: it orchestrates two independent
+# compilers — clang for the BPF objects, esbuild for the JS bundle.
+# Neither understands the other; the JS references compiled objects in
+# bin/ only by path, resolved at runtime. `yeet run` invokes `make`
+# automatically when running this project from a trusted remote source,
+# so the default goal must leave the project runnable.
+#
+# clang, bpftool and esbuild come from the static toolchain resolved by
+# build/toolchain.mk (a shared per-machine cache, or binaries vendored in
+# the bootstrap repo) — so the build needs no system C/BPF toolchain.
+
+.DEFAULT_GOAL := all
+
+include build/toolchain.mk
+include build/bpf.mk
+
+# The service scripts (src/*.js) import only `yeet:*` builtins and relative
+# siblings, so there is no JS bundle step — `all` is the BPF object alone.
+all: bpf
+
+# Bundle the entry with the vendored esbuild. esbuild honors tsconfig `paths`
+# (so `@/` resolves at bundle time), while `yeet:*` builtins and `*.bpf.o`
+# objects stay external. The bundle is written to src/index.jsx, which the
+# entry ladder prefers over src/main.jsx — so once built, that is what runs.
+# The .jsx extension keeps the bundle eligible for component auto-mount.
+# Compiled BPF objects in bin/ are loaded by path at runtime, never imported,
+# so they are not bundled.
+#
+# The build needs no npm/node: the starter imports only `yeet:*` builtins and
+# local `@/` modules, which esbuild resolves on its own. If you add third-party
+# packages to package.json, install them into node_modules with the package
+# manager of your choice — esbuild inlines whatever it finds there.
+ESBUILD_FLAGS := --bundle --format=esm --platform=neutral \
+	--main-fields=module,main --conditions=import,module \
+	--define:import.meta.main=false \
+	--outfile=src/index.jsx --jsx=automatic --jsx-import-source=yeet:tui
+
+bundle: | toolchain
+	$(ESBUILD) src/main.jsx $(ESBUILD_FLAGS) '--external:yeet:*' '--external:*.bpf.o'
+
+# Post-generation finalize: initialize a git repository with the vendored git
+# (fetched via `vendored-git`). Idempotent — skipped if this is already a repo.
+# The scaffolders (`yeet new`, `scripts/new`) run `make postgen` after creating
+# the project, so the CLI itself stays a thin caller of make.
+postgen: | vendored-git
+	@g="$(GIT)"; [ -x "$$g" ] || g="$$(command -v git 2>/dev/null || true)"; \
+	if [ -e .git ]; then \
+		echo "postgen: already a git repository"; \
+	elif [ -n "$$g" ]; then \
+		echo "postgen: git init"; \
+		"$$g" -c init.templateDir= init -q . || echo "warning: 'git init' failed" >&2; \
+	else \
+		echo "warning: no git available (vendored or host); skipping 'git init'" >&2; \
+	fi
+
+clean: clean-bpf
+	rm -rf node_modules dist src/index.jsx
+
+.PHONY: all bundle clean postgen
+
+# ---------------------------------------------------------------------------
+# Run the exporter as a yeet service.
+# ---------------------------------------------------------------------------
+SERVICE  := agentcap
+COMPOSE  := docker compose -f deploy/docker-compose.yml
+METRICS  := http://127.0.0.1:9464/metrics
+
+# (Re)import the service from service.toml and start it. Idempotent: an
+# existing service is torn down first (the daemon copies unit scripts at
+# import time, so this is also how you pick up edits to src/).
+deploy: all
+	@command -v yeet >/dev/null || { echo "error: yeet CLI not found on PATH"; exit 1; }
+	-@yeet service stop $(SERVICE)   >/dev/null 2>&1
+	-@yeet service remove $(SERVICE) >/dev/null 2>&1
+	yeet service import service.toml --now
+	@echo "deployed. scrape it with:  make metrics"
+
+start:   ; yeet service start $(SERVICE)
+stop:    ; yeet service stop $(SERVICE)
+restart: ; yeet service restart $(SERVICE)
+status:  ; yeet service tree $(SERVICE)
+remove:  ; -yeet service stop $(SERVICE) >/dev/null 2>&1; yeet service remove $(SERVICE)
+
+# Scrape the endpoint (curl, else wget) so you can eyeball the exposition.
+metrics:
+	@curl -fsS $(METRICS) 2>/dev/null || wget -qO- $(METRICS) 2>/dev/null \
+		|| { echo "no response from $(METRICS) — is the service up? (make status)"; exit 1; }
+
+# Run the collector standalone: loads the probe, prints a live registry
+# dump every few seconds, no HTTP. Ctrl-C to stop. Pass agents like:
+#   make dev AGENTS=openclaw,claude,mybot
+dev: all
+	@if [ -n "$(AGENTS)" ]; then yeet run src/collector.js -- --agents=$(AGENTS); \
+	else yeet run src/collector.js; fi
+
+# ---------------------------------------------------------------------------
+# Observability stack (Prometheus + Grafana).
+# ---------------------------------------------------------------------------
+dashboard:
+	python3 deploy/grafana/gen-dashboard.py
+
+obs-up:
+	$(COMPOSE) up -d
+	@echo "Grafana:    http://localhost:3000  (anonymous admin)"
+	@echo "Prometheus: http://localhost:9091"
+
+obs-down:
+	$(COMPOSE) down
+
+# ---------------------------------------------------------------------------
+# One-shot lifecycle.
+# ---------------------------------------------------------------------------
+up: deploy obs-up
+	@echo
+	@echo "agentcap is up."
+	@echo "  metrics:    $(METRICS)"
+	@echo "  dashboard:  http://localhost:3000/d/agentcap/agent-activity"
+
+down: obs-down remove
+
+.PHONY: deploy start stop restart status remove metrics dev \
+	dashboard obs-up obs-down up down
