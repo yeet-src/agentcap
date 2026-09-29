@@ -6,7 +6,7 @@
 #   make clean    — remove build artifacts
 #
 # Run the exporter (yeet service on 127.0.0.1:9464):
-#   make check    — preflight: verify yeet, the daemon, login, BPF-LSM, docker
+#   make check    — preflight: verify yeet, the daemon, login, docker
 #   make deploy   — build + (re)import the service and start it
 #   make start / stop / restart / status / remove
 #   make metrics  — curl the /metrics endpoint
@@ -95,11 +95,9 @@ check:
 	if command -v yeet >/dev/null 2>&1; then echo "  ✓ yeet CLI installed"; \
 	else echo "  ✗ yeet CLI missing        → curl -fsSL https://yeet.cx | sh"; ok=0; fi; \
 	if yeet status >/dev/null 2>&1; then echo "  ✓ yeetd daemon reachable"; \
-	else echo "  ✗ yeetd not reachable     → sudo systemctl start yeetd"; ok=0; fi; \
+	else echo "  ✗ yeetd not reachable     → the yeet installer sets it up; see yeet status"; ok=0; fi; \
 	if yeet whoami -q >/dev/null 2>&1; then echo "  ✓ logged in to yeet"; \
 	else echo "  ✗ not logged in           → yeet login"; ok=0; fi; \
-	if grep -qw bpf /sys/kernel/security/lsm 2>/dev/null; then echo "  ✓ BPF-LSM enabled"; \
-	else echo "  ✗ BPF-LSM not enabled     → add 'bpf' to the boot lsm= list (needs CONFIG_BPF_LSM=y)"; ok=0; fi; \
 	if command -v docker >/dev/null 2>&1; then echo "  ✓ docker (Prometheus/Grafana)"; \
 	else echo "  • docker not found        → optional; only 'make obs-up' needs it"; fi; \
 	if command -v python3 >/dev/null 2>&1; then echo "  ✓ python3 (dashboard gen)"; \

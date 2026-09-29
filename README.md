@@ -21,7 +21,7 @@ service. A provisioned Grafana dashboard rides along.
 curl -fsSL https://yeet.cx | sh          # 1. install yeet (CLI + yeetd daemon)
 yeet login                               # 2. authenticate this host
 git clone https://github.com/yeet-src/agentcap && cd agentcap
-make check                               # 3. preflight (yeet, daemon, BPF-LSM, docker)
+make check                               # 3. preflight (yeet, daemon, login, docker)
 make up                                  # 4. build + deploy + Prometheus + Grafana
 ```
 
@@ -63,8 +63,9 @@ gateway) are adopted on their first context switch, fork, or socket/file op.
 kprobes.** LSM (`socket_connect`, `socket_sendmsg`) carries exact
 before-the-fact semantics and is a stable security API; fexit supplies what
 LSM never sees: actual received bytes (`sock_recvmsg`) and actual file I/O
-(`vfs_read`/`vfs_write`). LSM programs need `CONFIG_BPF_LSM=y` and `bpf` in
-the boot `lsm=` list (Fedora ships both).
+(`vfs_read`/`vfs_write`). The LSM programs need a kernel with BPF-LSM
+available, which modern distros ship; if it isn't, the probe reports
+`agentcap_probe_up 0` and the app stays up rather than crashing.
 
 Egress is split by rate: rare lifecycle events (fork/exec/exit, with names)
 stream over a ring buffer; high-rate sums (CPU ns, socket and file bytes)
@@ -122,39 +123,16 @@ comm prefix per line. Edit that file to change what's watched.
 ### 0. Install yeet and log in
 
 ```sh
-curl -fsSL https://yeet.cx | sh    # installs the `yeet` CLI and the yeetd daemon
+curl -fsSL https://yeet.cx | sh    # installs the yeet CLI + the yeetd daemon
 yeet login                         # authenticate this host
 yeet status                        # must print "Status: Ok."
 ```
 
-**What is yeetd?** yeet has two parts: the `yeet` CLI you run, and **yeetd**,
-a privileged background daemon (a systemd service) that actually does the
-work — it loads and attaches eBPF programs, runs your JavaScript in V8
-isolates, keeps services alive, and serves the system graph. The CLI just
-talks to it over a local socket (`/run/yeet/yeetd.sock`). agentcap's probe
-and collector run *inside* yeetd, which is why it needs the privileges to
-load BPF. If `yeet status` can't reach it, start the daemon:
+`yeetd` is the daemon the installer sets up; it does the eBPF loading and runs
+the service. Docker + Python 3 are the only other things you need, for the
+Prometheus/Grafana stack.
 
-```sh
-sudo systemctl start yeetd         # and: sudo systemctl enable yeetd  (start on boot)
-```
-
-### 1. Prerequisites (check once)
-
-```sh
-cat /sys/kernel/security/lsm      # must contain "bpf"   (BPF-LSM enabled)
-grep CONFIG_BPF_LSM /boot/config-$(uname -r)   # CONFIG_BPF_LSM=y
-docker version >/dev/null && echo docker-ok    # for the Prometheus/Grafana stack
-```
-
-- A BTF-capable Linux kernel with **BPF-LSM on** (`CONFIG_BPF_LSM=y` and `bpf`
-  in the boot `lsm=` list — Fedora ships this). The LSM + fexit programs
-  need it.
-- `clang` + `bpftool` for the BPF build (`bpftool` is often in `/usr/sbin`);
-  the yeet toolchain vendors them.
-- Docker + Python 3 for the dashboard stack.
-
-### 2. One-shot
+### 1. One-shot
 
 ```sh
 make up
@@ -168,7 +146,7 @@ done. Then:
 - **Raw metrics:** `make metrics` (or `curl -s http://127.0.0.1:9464/metrics`)
 - **Tear down:** `make down`
 
-### 3. Or step by step
+### 2. Or step by step
 
 ```sh
 make                 # compile bin/probe.bpf.o
