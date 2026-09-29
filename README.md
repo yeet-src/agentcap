@@ -30,13 +30,15 @@ service. A provisioned Grafana dashboard rides along.
 curl -fsSL https://yeet.cx | sh          # 1. install yeet (CLI + yeetd daemon)
 yeet login                               # 2. authenticate this host
 git clone https://github.com/yeet-src/agentcap && cd agentcap
-make check                               # 3. preflight (yeet, daemon, login, docker)
-make grafana                             # 4. build + start exporter + Prometheus + Grafana
+make up                                  # 3. build + start the exporter on :9464
+make wire                                # 4. print how to add it to your Grafana
 ```
 
-Then open **<http://localhost:3000/d/agentcap/agent-activity>**. `make down`
-tears it all back down. Full detail — including what to do if a check fails —
-is in **[Setup](#setup)**.
+`make up` runs the exporter (a Prometheus endpoint at `127.0.0.1:9464`);
+`make wire` prints the scrape-config + dashboard-import steps for your Grafana.
+No Grafana handy? Run `make demo` for a throwaway Prometheus + Grafana in
+Docker at <http://localhost:3000/d/agentcap/agent-activity>. Full detail in
+**[Setup](#setup)**; `make down` stops everything.
 
 ## Agents included
 
@@ -129,7 +131,7 @@ Gemini, aider, opencode, goose, cline, continue, cursor, qwen, crush, amp,
 grok, omp, pi — are pre-filled in [`src/agents.txt`](src/agents.txt), one
 comm prefix per line. Edit that file to change what's watched.
 
-### 0. Install yeet and log in
+### 1. Install yeet and log in
 
 ```sh
 curl -fsSL https://yeet.cx | sh    # installs the yeet CLI + the yeetd daemon
@@ -138,51 +140,48 @@ yeet status                        # must print "Status: Ok."
 ```
 
 `yeetd` is the daemon the installer sets up; it does the eBPF loading and runs
-the service. Then pick the path that matches your setup:
+the service. Verify your environment anytime with `make check`.
 
-### 1a. Don't have Grafana yet? → `make grafana`
-
-Brings up the whole thing: builds the probe, starts the exporter, and runs
-Prometheus + Grafana in Docker with the dashboard pre-loaded. (`make grafana`
-runs `make exporter` first, then the Docker stack. Needs Docker.)
+### 2. Run the exporter
 
 ```sh
-make grafana
+make up            # build + start the exporter on 127.0.0.1:9464 (no Docker)
 ```
 
-- **Dashboard:** <http://localhost:3000/d/agentcap/agent-activity>
-- **Raw metrics:** `make metrics` (or `curl -s http://127.0.0.1:9464/metrics`)
-- **Tear down:** `make down`
+That's the whole product — a Prometheus endpoint at
+<http://127.0.0.1:9464/metrics> (`make metrics` to eyeball it). `make up` is
+also how you pick up edits to `src/` (it re-imports; the daemon copies unit
+scripts at import time). Stop it with `make down`.
 
-### 1b. Already have Grafana / Prometheus? → `make exporter`
-
-Runs just the exporter — no Docker — then tells you how to plug it in:
+### 3. Point Grafana at it
 
 ```sh
-make exporter      # build + start the exporter on 127.0.0.1:9464
-make wire          # prints the scrape-config + dashboard-import steps
+make wire          # prints the two steps below with absolute paths
 ```
 
-`make wire` prints the exact Prometheus scrape job and the absolute path of
-the dashboard JSON to import — see [Already running Grafana / Prometheus?](#already-running-grafana--prometheus)
-for the full detail.
+1. Add a scrape job to your Prometheus (`targets: ["127.0.0.1:9464"]`).
+2. Import `deploy/grafana/dashboards/agent-activity.json` into Grafana and
+   pick your Prometheus datasource.
 
----
+Full detail in [Already running Grafana / Prometheus?](#already-running-grafana--prometheus).
 
-`make exporter` is also how you pick up edits to `src/` (it tears down and
-re-imports; the daemon copies unit scripts at import time). The service
-(`service.toml`) is three units: **keeper** (eager) holds the collector shared
-worker — and the BPF probe and metric registry inside it — alive; **scrape**
-(lazy, per-connection) renders one exposition document per request over the
-console portal; **web** binds `127.0.0.1:9464` and mounts `/metrics`.
+> **No Grafana handy?** `make demo` spins up a throwaway Prometheus + Grafana
+> in Docker with the dashboard pre-loaded — dashboard at
+> <http://localhost:3000/d/agentcap/agent-activity>. It just runs the exporter
+> then the container stack; `make down` tears it back down. Docker is only
+> needed for this. (Python 3 only if you edit the dashboard generator; the
+> generated JSON is committed.)
 
-Docker is only for `make grafana`; Python 3 only if you edit the dashboard
-generator (the generated JSON is committed).
+The service (`service.toml`) is three units: **keeper** (eager) holds the
+collector shared worker — and the BPF probe and metric registry inside it —
+alive; **scrape** (lazy, per-connection) renders one exposition document per
+request over the console portal; **web** binds `127.0.0.1:9464` and mounts
+`/metrics`.
 
 ### Changing the agent set
 
 Edit [`src/agents.txt`](src/agents.txt) — one comm prefix per line, `#`
-comments and blank lines ignored — then `make exporter`. Or override for one
+comments and blank lines ignored — then `make up`. Or override for one
 run without editing anything:
 
 ```sh
@@ -222,7 +221,7 @@ Skip the bundled stack — run only the exporter and wire it into what you
 have. No Docker required:
 
 ```sh
-make exporter      # just the exporter on 127.0.0.1:9464 (no docker)
+make up            # just the exporter on 127.0.0.1:9464 (no docker)
 make wire          # prints the two steps below, with absolute paths
 ```
 
@@ -267,7 +266,7 @@ src/scrape.js            per-request /metrics renderer (console portal)
 src/main.js              eager keeper — holds the worker (and probe) alive
 service.toml             yeet service: units, web server, /metrics route
 deploy/                  prometheus.yml, docker-compose, grafana provisioning
-Makefile                 build + run lifecycle (make exporter, grafana, …)
+Makefile                 build + run lifecycle (make up, wire, demo, …)
 ```
 
 ---

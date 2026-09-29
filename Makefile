@@ -17,10 +17,11 @@
 #   make wire                  — print how to plug into an existing Grafana
 #   make dashboard             — regenerate the Grafana dashboard JSON
 #
-# One-shot (pick your path):
-#   make exporter — exporter only, no Docker (pair with `make wire`)
-#   make grafana  — exporter + Dockerized Prometheus & Grafana (needs Docker)
-#   make down     — stop the stack and the service
+# One-shot:
+#   make up       — run the exporter (alias: make exporter); then `make wire`
+#   make wire     — print how to add the exporter to your Grafana/Prometheus
+#   make demo     — optional throwaway Prometheus + Grafana in Docker to try it
+#   make down     — stop everything
 #
 # This is the build *frontend*: it orchestrates two independent
 # compilers — clang for the BPF objects, esbuild for the JS bundle.
@@ -143,8 +144,8 @@ dashboard:
 
 obs-up:
 	@command -v docker >/dev/null 2>&1 || { \
-	  echo "docker not found. Docker is only for the bundled stack —"; \
-	  echo "already have Grafana/Prometheus? run:  make deploy && make wire"; exit 1; }
+	  echo "docker not found — 'make demo' needs it. If you already run"; \
+	  echo "Grafana/Prometheus, you don't need it: make up && make wire"; exit 1; }
 	$(COMPOSE) up -d
 	@echo "Grafana:    http://localhost:3000  (anonymous admin)"
 	@echo "Prometheus: http://localhost:9091"
@@ -167,26 +168,26 @@ wire:
 	@echo "   It references a Prometheus datasource — pick yours on import."
 
 # ---------------------------------------------------------------------------
-# One-shot lifecycle — pick your path.
+# One-shot lifecycle.
 # ---------------------------------------------------------------------------
 
-# Exporter only (no Docker): preflight, build, deploy the yeet service.
-# Pair with `make wire` if you already run Grafana/Prometheus.
-exporter: check deploy
-	@echo "exporter live on $(METRICS)"
-
-# Full stack: the exporter (prerequisite) + Dockerized Prometheus & Grafana
-# with the dashboard pre-loaded.
-grafana: exporter obs-up
+# The exporter — this is the product. Preflight, build, deploy; no Docker.
+# `make up` is an alias.
+exporter up: check deploy
 	@echo
-	@echo "agentcap is up."
-	@echo "  metrics:    $(METRICS)"
-	@echo "  dashboard:  http://localhost:3000/d/agentcap/agent-activity"
+	@echo "exporter live on $(METRICS)"
+	@echo "next:"
+	@echo "  • add it to your Grafana/Prometheus:   make wire"
+	@echo "  • no Grafana? try the local demo stack: make demo"
 
-# Back-compat alias for `make grafana`.
-up: grafana
+# Optional: a throwaway Prometheus + Grafana in Docker (dashboard preloaded)
+# to try agentcap locally if you don't already run Grafana. Starts the
+# exporter first, then the stack.
+demo: exporter obs-up
+	@echo
+	@echo "demo stack up — dashboard: http://localhost:3000/d/agentcap/agent-activity"
 
 down: obs-down remove
 
-.PHONY: exporter grafana check deploy start stop restart status remove metrics dev \
-	dashboard obs-up obs-down wire up down
+.PHONY: exporter up demo check deploy start stop restart status remove metrics dev \
+	dashboard obs-up obs-down wire down
