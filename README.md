@@ -297,6 +297,33 @@ deploy/                  prometheus.yml, docker-compose, grafana provisioning
 Makefile                 build + run lifecycle (make up, wire, demo, …)
 ```
 
+## Customization
+
+The whole thing is a small yeet script — a BPF program (`src/bpf/*.bpf.c`), a
+JS collector (`src/collector.js`), and a generated dashboard
+(`deploy/grafana/gen-dashboard.py`). It's easy to extend with a coding agent;
+point yours at this repo and try prompts like:
+
+- **Watch a new agent.** "Add `mybot` to `src/agents.txt` and redeploy, then
+  confirm `agentcap_tasks{agent="mybot"}` appears."
+- **Alert on suspicious egress.** "Add a Grafana alert rule that fires when
+  `agentcap_net_connections_total` sees a port outside {80, 443, 53} for any
+  agent."
+- **Map where agents connect.** "Capture the destination IP in the connect
+  event, add a GeoIP lookup in the collector, and add a Grafana geomap panel."
+  (This also surfaces DoH/DoT egress that has no visible domain.)
+- **Add a metric.** "Add `agentcap_agents_total` (count of agents with a live
+  task) and a stat tile for it on the dashboard."
+- **Restrict what's watched.** "Only track agents under a given cgroup / unit,
+  and add a label for it."
+- **New panel.** "Add a dashboard panel showing the top 10 files written per
+  agent over the selected range."
+- **Ship it elsewhere.** "Add a second scrape route that renders the registry
+  as OpenMetrics/JSON instead of Prometheus text."
+
+Each is a self-contained change to one or two files; rebuild with `make up`
+(and `make dashboard` if you touched the generator).
+
 ---
 
 Built with [yeet](https://yeet.cx/docs/?utm_source=github&utm_medium=readme&utm_campaign=agentcap),
