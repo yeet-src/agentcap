@@ -17,8 +17,9 @@
 #   make wire                  — print how to plug into an existing Grafana
 #   make dashboard             — regenerate the Grafana dashboard JSON
 #
-# One-shot:
-#   make up       — build + deploy + obs-up, then print the URLs
+# One-shot (pick your path):
+#   make exporter — exporter only, no Docker (pair with `make wire`)
+#   make grafana  — exporter + Dockerized Prometheus & Grafana (needs Docker)
 #   make down     — stop the stack and the service
 #
 # This is the build *frontend*: it orchestrates two independent
@@ -166,15 +167,26 @@ wire:
 	@echo "   It references a Prometheus datasource — pick yours on import."
 
 # ---------------------------------------------------------------------------
-# One-shot lifecycle.
+# One-shot lifecycle — pick your path.
 # ---------------------------------------------------------------------------
-up: check deploy obs-up
+
+# Exporter only (no Docker): preflight, build, deploy the yeet service.
+# Pair with `make wire` if you already run Grafana/Prometheus.
+exporter: check deploy
+	@echo "exporter live on $(METRICS)"
+
+# Full stack: the exporter (prerequisite) + Dockerized Prometheus & Grafana
+# with the dashboard pre-loaded.
+grafana: exporter obs-up
 	@echo
 	@echo "agentcap is up."
 	@echo "  metrics:    $(METRICS)"
 	@echo "  dashboard:  http://localhost:3000/d/agentcap/agent-activity"
 
+# Back-compat alias for `make grafana`.
+up: grafana
+
 down: obs-down remove
 
-.PHONY: check deploy start stop restart status remove metrics dev \
+.PHONY: exporter grafana check deploy start stop restart status remove metrics dev \
 	dashboard obs-up obs-down wire up down

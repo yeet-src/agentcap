@@ -31,7 +31,7 @@ curl -fsSL https://yeet.cx | sh          # 1. install yeet (CLI + yeetd daemon)
 yeet login                               # 2. authenticate this host
 git clone https://github.com/yeet-src/agentcap && cd agentcap
 make check                               # 3. preflight (yeet, daemon, login, docker)
-make up                                  # 4. build + deploy + Prometheus + Grafana
+make grafana                             # 4. build + start exporter + Prometheus + Grafana
 ```
 
 Then open **<http://localhost:3000/d/agentcap/agent-activity>**. `make down`
@@ -140,25 +140,26 @@ yeet status                        # must print "Status: Ok."
 `yeetd` is the daemon the installer sets up; it does the eBPF loading and runs
 the service. Then pick the path that matches your setup:
 
-### 1a. You DON'T have Grafana yet — use the bundled stack
+### 1a. Don't have Grafana yet? → `make grafana`
 
-One command builds the probe, starts the exporter, and brings up Prometheus +
-Grafana in Docker with the dashboard pre-loaded (needs Docker):
+Brings up the whole thing: builds the probe, starts the exporter, and runs
+Prometheus + Grafana in Docker with the dashboard pre-loaded. (`make grafana`
+runs `make exporter` first, then the Docker stack. Needs Docker.)
 
 ```sh
-make up
+make grafana
 ```
 
 - **Dashboard:** <http://localhost:3000/d/agentcap/agent-activity>
 - **Raw metrics:** `make metrics` (or `curl -s http://127.0.0.1:9464/metrics`)
 - **Tear down:** `make down`
 
-### 1b. You ALREADY have Grafana / Prometheus — no Docker
+### 1b. Already have Grafana / Prometheus? → `make exporter`
 
-Run just the exporter and wire it into what you already run:
+Runs just the exporter — no Docker — then tells you how to plug it in:
 
 ```sh
-make deploy        # build + start the exporter on 127.0.0.1:9464 (no Docker)
+make exporter      # build + start the exporter on 127.0.0.1:9464
 make wire          # prints the scrape-config + dashboard-import steps
 ```
 
@@ -168,20 +169,20 @@ for the full detail.
 
 ---
 
-Either way, `make deploy` is how you pick up edits to `src/` (it tears down and
+`make exporter` is also how you pick up edits to `src/` (it tears down and
 re-imports; the daemon copies unit scripts at import time). The service
 (`service.toml`) is three units: **keeper** (eager) holds the collector shared
 worker — and the BPF probe and metric registry inside it — alive; **scrape**
 (lazy, per-connection) renders one exposition document per request over the
 console portal; **web** binds `127.0.0.1:9464` and mounts `/metrics`.
 
-Docker is only for path 1a; Python 3 only if you edit the dashboard generator
-(the generated JSON is committed).
+Docker is only for `make grafana`; Python 3 only if you edit the dashboard
+generator (the generated JSON is committed).
 
 ### Changing the agent set
 
 Edit [`src/agents.txt`](src/agents.txt) — one comm prefix per line, `#`
-comments and blank lines ignored — then `make deploy`. Or override for one
+comments and blank lines ignored — then `make exporter`. Or override for one
 run without editing anything:
 
 ```sh
@@ -221,7 +222,7 @@ Skip the bundled stack — run only the exporter and wire it into what you
 have. No Docker required:
 
 ```sh
-make deploy        # just the exporter on 127.0.0.1:9464 (no docker)
+make exporter      # just the exporter on 127.0.0.1:9464 (no docker)
 make wire          # prints the two steps below, with absolute paths
 ```
 
@@ -266,7 +267,7 @@ src/scrape.js            per-request /metrics renderer (console portal)
 src/main.js              eager keeper — holds the worker (and probe) alive
 service.toml             yeet service: units, web server, /metrics route
 deploy/                  prometheus.yml, docker-compose, grafana provisioning
-Makefile                 build + run/deploy lifecycle (make up, deploy, …)
+Makefile                 build + run lifecycle (make exporter, grafana, …)
 ```
 
 ---
