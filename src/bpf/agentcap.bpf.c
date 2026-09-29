@@ -315,7 +315,15 @@ int on_switch(struct trace_event_raw_sched_switch *ctx)
 	__u32 next = ctx->next_pid;
 	struct task_state *st = bpf_map_lookup_elem(&tracked, &next);
 	if (!st && next) {
-		int a = agent_match(ctx->next_comm);
+		// Copy next_comm out of the tracepoint ctx into a stack buffer
+		// before matching. Passing the ctx array straight into
+		// agent_match's 16-byte read is accepted by recent verifiers
+		// (bpf-next, 6.13+) but rejected on 6.1/6.6/6.12 as an invalid
+		// context access — the stack copy is the portable form, and the
+		// same pattern the fork/exec/exit programs already use.
+		char comm[TASK_COMM_LEN] = {};
+		bpf_probe_read_kernel(comm, sizeof(comm), ctx->next_comm);
+		int a = agent_match(comm);
 		if (a >= 0) {
 			track(next, a);
 			st = bpf_map_lookup_elem(&tracked, &next);
