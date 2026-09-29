@@ -92,7 +92,8 @@ METRICS  := http://127.0.0.1:9464/metrics
 
 # Preflight: verify the environment before doing anything. Prints ✓ / ✗ with
 # a fix hint for each item; exits non-zero if a hard requirement is missing.
-# `make up` runs this first.
+# If the host isn't logged in it runs `yeet login` for you. `make up` runs
+# this first.
 check:
 	@ok=1; echo "agentcap preflight:"; \
 	if command -v yeet >/dev/null 2>&1; then echo "  ✓ yeet CLI installed"; \
@@ -100,9 +101,11 @@ check:
 	if yeet status >/dev/null 2>&1; then echo "  ✓ yeetd daemon reachable"; \
 	else echo "  ✗ yeetd not reachable     → the yeet installer sets it up; see yeet status"; ok=0; fi; \
 	if yeet whoami -q >/dev/null 2>&1; then echo "  ✓ logged in to yeet"; \
-	else echo "  ✗ not logged in           → yeet login"; ok=0; fi; \
+	else echo "  • not logged in — running 'yeet login'…"; \
+	  if yeet login && yeet whoami -q >/dev/null 2>&1; then echo "  ✓ logged in to yeet"; \
+	  else echo "  ✗ login failed            → run: yeet login"; ok=0; fi; fi; \
 	if command -v docker >/dev/null 2>&1; then echo "  ✓ docker (Prometheus/Grafana)"; \
-	else echo "  • docker not found        → optional; skip it: make deploy && make wire"; fi; \
+	else echo "  • docker not found        → optional; skip it: make up && make wire"; fi; \
 	if command -v python3 >/dev/null 2>&1; then echo "  ✓ python3 (dashboard gen)"; \
 	else echo "  • python3 not found       → optional; only 'make dashboard' needs it"; fi; \
 	if [ $$ok -eq 1 ]; then echo "ready → run: make up"; \
