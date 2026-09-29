@@ -5,8 +5,6 @@ Codex, Gemini, aider, omp, pi, grok, opencode, or any set you configure —
 captured in-kernel with eBPF and served by a [yeet](https://yeet.cx)
 service. A provisioned Grafana dashboard rides along.
 
-Home: `gh:yeet-src/agentcap`. Clone it and run `make up` — see **Setup**.
-
 ```
  kernel (eBPF)                yeet service "agentcap"              observability
 ┌────────────────────┐   ┌──────────────────────────────────┐   ┌──────────────┐
@@ -16,6 +14,37 @@ Home: `gh:yeet-src/agentcap`. Clone it and run `make up` — see **Setup**.
 │  — zero kprobes    │   │ scrape.js     per-request render │   │  :3000       │
 └────────────────────┘   └──────────────────────────────────┘   └──────────────┘
 ```
+
+## Quickstart
+
+```sh
+curl -fsSL https://yeet.cx | sh          # 1. install yeet (CLI + yeetd daemon)
+yeet login                               # 2. authenticate this host
+git clone https://github.com/yeet-src/agentcap && cd agentcap
+make check                               # 3. preflight (yeet, daemon, BPF-LSM, docker)
+make up                                  # 4. build + deploy + Prometheus + Grafana
+```
+
+Then open **<http://localhost:3000/d/agentcap/agent-activity>**. `make down`
+tears it all back down. Full detail — including what to do if a check fails —
+is in **[Setup](#setup)**.
+
+## Agents included
+
+Tracked out of the box (edit [`src/agents.txt`](src/agents.txt) to change the
+list — one comm prefix per line):
+
+| | | | |
+|---|---|---|---|
+| OpenClaw (`openclaw`) | Claude Code (`claude`) | OpenAI Codex (`codex`) | Gemini CLI (`gemini`) |
+| aider (`aider`) | opencode (`opencode`) | Block goose (`goose`) | Cline (`cline`) |
+| Continue (`continue`) | Cursor (`cursor`) | qwen-code (`qwen`) | Charm crush (`crush`) |
+| Sourcegraph amp (`amp`) | grok (`grok`) | omp (`omp`) | pi (`pi`) |
+
+Each name is a **process-comm prefix**; a match pulls in that process's whole
+tree, so the `bash` / `node` / `curl` an agent spawns is counted under it. Only
+agents actually running appear in the metrics — the list is the watch set, not
+a requirement that all be present.
 
 ## How it watches agents
 
