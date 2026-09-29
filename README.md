@@ -5,6 +5,8 @@ Codex, Gemini, aider, omp, pi, grok, opencode, or any set you configure —
 captured in-kernel with eBPF and served by a [yeet](https://yeet.cx)
 service. A provisioned Grafana dashboard rides along.
 
+![Agent Activity dashboard — overview: hero stats, tracked tasks, tool execs/s, which agent ran what, top tools, CPU by agent](docs/dashboard-overview.png)
+
 ```
  kernel (eBPF)                yeet service "agentcap"              observability
 ┌────────────────────┐   ┌──────────────────────────────────┐   ┌──────────────┐
@@ -28,8 +30,6 @@ make up                                  # 4. build + deploy + Prometheus + Graf
 Then open **<http://localhost:3000/d/agentcap/agent-activity>**. `make down`
 tears it all back down. Full detail — including what to do if a check fails —
 is in **[Setup](#setup)**.
-
-![Agent Activity dashboard — overview: hero stats, tracked tasks, tool execs/s, which agent ran what, top tools, CPU by agent](docs/dashboard-overview.png)
 
 ## Agents included
 
