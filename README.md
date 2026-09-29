@@ -103,13 +103,15 @@ of watching from the kernel, documented rather than papered over.
 
 ## Metrics
 
-All labeled `agent`; execs also carry `comm` (the tool that ran, capped at
-50 distinct values per agent, then folded into `other`).
+All labeled `agent`. A few carry an extra label — `execs` a `comm` (the tool
+that ran), `net_connections` a `port`, `dns_queries` a `domain`, and
+`files_opened` a `path` + `mode` — each capped per agent (then folded into
+`other`) to bound cardinality.
 
 | Metric | Type | Meaning |
 |---|---|---|
 | `agentcap_tasks` | gauge | tracked tasks alive per agent tree |
-| `agentcap_execs_total` | counter | binaries exec'd (tools the agent ran) |
+| `agentcap_execs_total` | counter | binaries exec'd (tools the agent ran), by `comm` |
 | `agentcap_forks_total` / `agentcap_exits_total` | counter | process churn |
 | `agentcap_cpu_seconds_total` | counter | on-CPU time of the tree |
 | `agentcap_net_connects_total` | counter | inet socket connects |
@@ -117,6 +119,7 @@ All labeled `agent`; execs also carry `comm` (the tool that ran, capped at
 | `agentcap_file_read_bytes_total` / `..._write_bytes_total` | counter | actual VFS bytes |
 | `agentcap_net_connections_total` | counter | inet connects by destination `port` — the audit view |
 | `agentcap_dns_queries_total` | counter | lookups by `domain` (see DNS note below) |
+| `agentcap_files_opened_total` | counter | regular files opened, by `path` + `mode` (read/write) |
 | `agentcap_last_activity_timestamp_seconds` | gauge | unix time of last lifecycle event |
 | `agentcap_probe_up` | gauge | BPF object loaded and attached |
 | `agentcap_events_dropped_total` | counter | ring-buffer backpressure |
