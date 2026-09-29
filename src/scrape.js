@@ -13,4 +13,4 @@ import { render } from "yeet:telemetry";
 // attach win, and the pending timer keeps the isolate alive until the body
 // has streamed. Same reason the docs' snapshot.js example defers.
 const body = await render({ worker: "./collector.js" });
-setTimeout(() => console.log(body), 50);
+setTimeout(() => console.log(body), 100);
