@@ -19,7 +19,10 @@ isolate = "./src/scrape.js"
 lazy = true
 
 [units.web]
-web-server = "http://127.0.0.1:9464"
+# Bind all interfaces so a Prometheus on another host can scrape it.
+# NOTE: this exposes /metrics to the network — restrict with a firewall if
+# the box is reachable. Use 127.0.0.1 instead to keep it loopback-only.
+web-server = "http://0.0.0.0:9464"
 
 [units.web.routes."/metrics"]
 target = "scrape"

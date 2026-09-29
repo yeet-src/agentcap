@@ -175,7 +175,7 @@ Full detail in [Already running Grafana / Prometheus?](#already-running-grafana-
 The service (`service.toml`) is three units: **keeper** (eager) holds the
 collector shared worker — and the BPF probe and metric registry inside it —
 alive; **scrape** (lazy, per-connection) renders one exposition document per
-request over the console portal; **web** binds `127.0.0.1:9464` and mounts
+request over the console portal; **web** binds `0.0.0.0:9464` and mounts
 `/metrics`.
 
 ### Changing the agent set
@@ -214,8 +214,8 @@ service), `make obs-up` / `make obs-down` (just the Docker stack), and
 `make obs-up` runs `deploy/docker-compose.yml` (Prometheus on **:9091** —
 9090 is often Cockpit's — and Grafana on **:3000**).
 
-Both run with host networking so Prometheus can reach the loopback-only
-exporter. The **Agent Activity** dashboard (`deploy/grafana/dashboards/`)
+Both run with host networking so Prometheus can reach the exporter on
+`127.0.0.1:9464`. The **Agent Activity** dashboard (`deploy/grafana/dashboards/`)
 is provisioned automatically and filterable by agent, with a stable color
 per agent across every panel. It has four sections:
 
@@ -246,15 +246,15 @@ make up            # just the exporter on 127.0.0.1:9464 (no docker)
 make wire          # prints the two steps below, with absolute paths
 ```
 
-1. **Prometheus** — add a scrape job (the exporter listens on loopback, so
-   Prometheus must reach `127.0.0.1`; if it runs elsewhere, expose the port
-   or scrape from the same host):
+1. **Prometheus** — add a scrape job. The exporter binds `0.0.0.0:9464`, so
+   use `127.0.0.1` from the same host or the host's IP from a remote
+   Prometheus (firewall the port if the box is network-reachable):
 
    ```yaml
    scrape_configs:
      - job_name: agentcap
        static_configs:
-         - targets: ["127.0.0.1:9464"]
+         - targets: ["127.0.0.1:9464"]   # or "<host-ip>:9464" from elsewhere
    ```
 
 2. **Grafana** — make sure a Prometheus datasource exists, then import

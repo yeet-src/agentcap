@@ -161,7 +161,7 @@ wire:
 	@echo "   scrape_configs:"
 	@echo "     - job_name: agentcap"
 	@echo "       static_configs:"
-	@echo "         - targets: [\"127.0.0.1:9464\"]   # exporter is loopback-only"
+	@echo "         - targets: [\"127.0.0.1:9464\"]   # same host; use the host IP from elsewhere"
 	@echo ""
 	@echo "2) Import the dashboard into Grafana (Dashboards > New > Import):"
 	@echo "   $(CURDIR)/deploy/grafana/dashboards/agent-activity.json"
