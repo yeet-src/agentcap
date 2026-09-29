@@ -131,8 +131,11 @@ yeet status                        # must print "Status: Ok."
 ```
 
 `yeetd` is the daemon the installer sets up; it does the eBPF loading and runs
-the service. Docker + Python 3 are the only other things you need, for the
-Prometheus/Grafana stack.
+the service. **Docker is optional** — it's only for the bundled Prometheus +
+Grafana stack. Already run Grafana/Prometheus? Skip Docker entirely: `make
+deploy` then `make wire` (see [Already running Grafana / Prometheus?](#already-running-grafana--prometheus)).
+Python 3 is only needed if you edit the dashboard generator; the generated
+JSON is committed.
 
 ### 1. One-shot
 
@@ -207,10 +210,11 @@ boilerplate and the per-agent color mapping stay consistent.
 ### Already running Grafana / Prometheus?
 
 Skip the bundled stack — run only the exporter and wire it into what you
-have:
+have. No Docker required:
 
 ```sh
 make deploy        # just the exporter on 127.0.0.1:9464 (no docker)
+make wire          # prints the two steps below, with absolute paths
 ```
 
 1. **Prometheus** — add a scrape job (the exporter listens on loopback, so

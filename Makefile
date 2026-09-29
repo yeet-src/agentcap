@@ -14,6 +14,7 @@
 #
 # Observability stack (Prometheus + Grafana in Docker):
 #   make obs-up / obs-down     — bring the stack up / down
+#   make wire                  — print how to plug into an existing Grafana
 #   make dashboard             — regenerate the Grafana dashboard JSON
 #
 # One-shot:
@@ -99,7 +100,7 @@ check:
 	if yeet whoami -q >/dev/null 2>&1; then echo "  ✓ logged in to yeet"; \
 	else echo "  ✗ not logged in           → yeet login"; ok=0; fi; \
 	if command -v docker >/dev/null 2>&1; then echo "  ✓ docker (Prometheus/Grafana)"; \
-	else echo "  • docker not found        → optional; only 'make obs-up' needs it"; fi; \
+	else echo "  • docker not found        → optional; skip it: make deploy && make wire"; fi; \
 	if command -v python3 >/dev/null 2>&1; then echo "  ✓ python3 (dashboard gen)"; \
 	else echo "  • python3 not found       → optional; only 'make dashboard' needs it"; fi; \
 	if [ $$ok -eq 1 ]; then echo "ready → run: make up"; \
@@ -140,12 +141,29 @@ dashboard:
 	python3 deploy/grafana/gen-dashboard.py
 
 obs-up:
+	@command -v docker >/dev/null 2>&1 || { \
+	  echo "docker not found. Docker is only for the bundled stack —"; \
+	  echo "already have Grafana/Prometheus? run:  make deploy && make wire"; exit 1; }
 	$(COMPOSE) up -d
 	@echo "Grafana:    http://localhost:3000  (anonymous admin)"
 	@echo "Prometheus: http://localhost:9091"
 
 obs-down:
 	$(COMPOSE) down
+
+# Already running Grafana/Prometheus? Skip Docker: `make deploy` then this
+# prints exactly how to wire the exporter into what you have.
+wire:
+	@echo "1) Point your Prometheus at the exporter — add to prometheus.yml:"
+	@echo ""
+	@echo "   scrape_configs:"
+	@echo "     - job_name: agentcap"
+	@echo "       static_configs:"
+	@echo "         - targets: [\"127.0.0.1:9464\"]   # exporter is loopback-only"
+	@echo ""
+	@echo "2) Import the dashboard into Grafana (Dashboards > New > Import):"
+	@echo "   $(CURDIR)/deploy/grafana/dashboards/agent-activity.json"
+	@echo "   It references a Prometheus datasource — pick yours on import."
 
 # ---------------------------------------------------------------------------
 # One-shot lifecycle.
@@ -159,4 +177,4 @@ up: check deploy obs-up
 down: obs-down remove
 
 .PHONY: check deploy start stop restart status remove metrics dev \
-	dashboard obs-up obs-down up down
+	dashboard obs-up obs-down wire up down
