@@ -138,44 +138,45 @@ yeet status                        # must print "Status: Ok."
 ```
 
 `yeetd` is the daemon the installer sets up; it does the eBPF loading and runs
-the service. **Docker is optional** — it's only for the bundled Prometheus +
-Grafana stack. Already run Grafana/Prometheus? Skip Docker entirely: `make
-deploy` then `make wire` (see [Already running Grafana / Prometheus?](#already-running-grafana--prometheus)).
-Python 3 is only needed if you edit the dashboard generator; the generated
-JSON is committed.
+the service. Then pick the path that matches your setup:
 
-### 1. One-shot
+### 1a. You DON'T have Grafana yet — use the bundled stack
+
+One command builds the probe, starts the exporter, and brings up Prometheus +
+Grafana in Docker with the dashboard pre-loaded (needs Docker):
 
 ```sh
 make up
 ```
 
-That builds the probe, imports and starts the yeet service on
-`127.0.0.1:9464`, and brings up Prometheus + Grafana. It prints the URLs when
-done. Then:
-
 - **Dashboard:** <http://localhost:3000/d/agentcap/agent-activity>
 - **Raw metrics:** `make metrics` (or `curl -s http://127.0.0.1:9464/metrics`)
 - **Tear down:** `make down`
 
-### 2. Or step by step
+### 1b. You ALREADY have Grafana / Prometheus — no Docker
+
+Run just the exporter and wire it into what you already run:
 
 ```sh
-make                 # compile bin/probe.bpf.o
-sudo make veristat   # optional: verify every program loads on this kernel
-make deploy          # (re)import + start the service   → "deployed."
-make metrics         # expect: agentcap_probe_up 1, agentcap_tasks{...}, …
-make obs-up          # Prometheus :9091, Grafana :3000 (dashboard auto-provisioned)
+make deploy        # build + start the exporter on 127.0.0.1:9464 (no Docker)
+make wire          # prints the scrape-config + dashboard-import steps
 ```
 
-`make deploy` tears down any previous instance and re-imports — it's also how
-you pick up edits to `src/` (the daemon copies unit scripts at import time).
+`make wire` prints the exact Prometheus scrape job and the absolute path of
+the dashboard JSON to import — see [Already running Grafana / Prometheus?](#already-running-grafana--prometheus)
+for the full detail.
 
-The service (`service.toml`) is three units: **keeper** (eager) holds the
-collector shared worker — and the BPF probe and metric registry inside it —
-alive; **scrape** (lazy, per-connection) renders one exposition document per
-request over the console portal; **web** binds `127.0.0.1:9464` and mounts
-`/metrics`.
+---
+
+Either way, `make deploy` is how you pick up edits to `src/` (it tears down and
+re-imports; the daemon copies unit scripts at import time). The service
+(`service.toml`) is three units: **keeper** (eager) holds the collector shared
+worker — and the BPF probe and metric registry inside it — alive; **scrape**
+(lazy, per-connection) renders one exposition document per request over the
+console portal; **web** binds `127.0.0.1:9464` and mounts `/metrics`.
+
+Docker is only for path 1a; Python 3 only if you edit the dashboard generator
+(the generated JSON is committed).
 
 ### Changing the agent set
 
