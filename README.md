@@ -301,28 +301,51 @@ Makefile                 build + run lifecycle (make up, wire, demo, …)
 
 The whole thing is a small yeet script — a BPF program (`src/bpf/*.bpf.c`), a
 JS collector (`src/collector.js`), and a generated dashboard
-(`deploy/grafana/gen-dashboard.py`). It's easy to extend with a coding agent;
-point yours at this repo and try prompts like:
+(`deploy/grafana/gen-dashboard.py`). Each of these is a one- or two-file
+change, so point a coding agent at this repo and paste a prompt:
 
-- **Watch a new agent.** "Add `mybot` to `src/agents.txt` and redeploy, then
-  confirm `agentcap_tasks{agent="mybot"}` appears."
-- **Alert on suspicious egress.** "Add a Grafana alert rule that fires when
-  `agentcap_net_connections_total` sees a port outside {80, 443, 53} for any
-  agent."
-- **Map where agents connect.** "Capture the destination IP in the connect
-  event, add a GeoIP lookup in the collector, and add a Grafana geomap panel."
-  (This also surfaces DoH/DoT egress that has no visible domain.)
-- **Add a metric.** "Add `agentcap_agents_total` (count of agents with a live
-  task) and a stat tile for it on the dashboard."
-- **Restrict what's watched.** "Only track agents under a given cgroup / unit,
-  and add a label for it."
-- **New panel.** "Add a dashboard panel showing the top 10 files written per
-  agent over the selected range."
-- **Ship it elsewhere.** "Add a second scrape route that renders the registry
-  as OpenMetrics/JSON instead of Prometheus text."
+**Watch a new agent**
 
-Each is a self-contained change to one or two files; rebuild with `make up`
-(and `make dashboard` if you touched the generator).
+> Add `mybot` as a new line in `src/agents.txt` and redeploy with `make up`.
+> Then scrape `http://127.0.0.1:9464/metrics` and confirm
+> `agentcap_tasks{agent="mybot"}` shows up while mybot is running. Leave the
+> other agents' matching unchanged.
+
+**Alert on suspicious egress**
+
+> Add a Grafana alert rule that fires when `agentcap_net_connections_total`
+> records a destination port outside {80, 443, 53} for any agent. Include the
+> `agent` and `port` labels in the notification text. Add the rule to the
+> generated dashboard so it ships with the repo.
+
+**Map where agents connect (geomap)**
+
+> Extend the BPF `conn_event` to include the destination IP, decode it in
+> `src/collector.js`, and add a GeoIP lookup so each connect gets a country.
+> Expose it as `agentcap_connections_by_country_total{agent,country}` and add a
+> Grafana geomap panel in `deploy/grafana/gen-dashboard.py`. This should also
+> surface DoH/DoT egress that has no visible domain.
+
+**Add a metric**
+
+> Add a gauge `agentcap_agents_total` in `src/collector.js` counting agents
+> with at least one live task, updated on the existing poll loop. Register it in
+> the telemetry registry next to the others. Then add a stat tile for it in the
+> dashboard generator and rerun `make dashboard`.
+
+**Restrict what's watched**
+
+> Change the probe so it only tracks agents whose process is under a given
+> systemd unit or cgroup, and add that as a metric label. Keep the comm-prefix
+> matching from `src/agents.txt` as a second filter. Document the new option in
+> the README's Setup section.
+
+**Ship it somewhere else**
+
+> Add a second scrape route to `service.toml` that renders the registry as
+> OpenMetrics or JSON instead of Prometheus text. Reuse the shared collector
+> worker so it reports the same data. Update `make wire` to mention the new
+> endpoint.
 
 ---
 
