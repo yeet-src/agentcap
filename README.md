@@ -188,6 +188,27 @@ run without editing anything:
 make dev AGENTS=openclaw,claude,mybot   # standalone, live dump, no HTTP
 ```
 
+## Make targets
+
+| Target | What it does |
+|---|---|
+| `make up` | Build the probe and start the exporter on `127.0.0.1:9464` (no Docker). Alias: `make exporter`. Re-run to pick up `src/` edits. |
+| `make wire` | Print how to add the exporter to your own Grafana/Prometheus (scrape job + dashboard-import path). |
+| `make demo` | Optional: run the exporter **plus** a throwaway Prometheus + Grafana in Docker, dashboard pre-loaded. |
+| `make down` | Stop everything — the demo stack (if up) and the exporter service. |
+| `make check` | Preflight: verify the yeet CLI, daemon, login, and Docker. |
+| `make metrics` | `curl` the `/metrics` endpoint so you can eyeball the exposition. |
+| `make status` | Show the running yeet service (`yeet service tree`). |
+| `make dev` | Run the collector standalone — live registry dump, no HTTP. `AGENTS=a,b,c` overrides the watch set. |
+| `make` | Compile the BPF object only (`bin/probe.bpf.o`). |
+| `make veristat` | Load the object with veristat to check the verifier accepts it on this kernel (needs `sudo`). |
+| `make dashboard` | Regenerate `deploy/grafana/dashboards/agent-activity.json` from the Python generator. |
+| `make clean` | Remove build artifacts. |
+
+Lower-level pieces `make up`/`demo` build on: `make deploy` (import + start the
+service), `make obs-up` / `make obs-down` (just the Docker stack), and
+`make start` / `stop` / `restart` / `remove` (service lifecycle).
+
 ## Prometheus + Grafana
 
 `make obs-up` runs `deploy/docker-compose.yml` (Prometheus on **:9091** —
