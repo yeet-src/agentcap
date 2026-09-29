@@ -1,6 +1,9 @@
+<!-- yeet:user-friendly-title: Watch what your AI agents do -->
 # agentcap
 
-<p>
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-Linux-1793D1" alt="Linux">
+  <img src="https://img.shields.io/badge/built%20with-yeet%20%2B%20eBPF-8A2BE2" alt="yeet + eBPF">
   <a href="https://discord.gg/JxVseaAVAU"><img src="https://img.shields.io/badge/chat-Discord-5865F2" alt="Discord"></a>
 </p>
 
