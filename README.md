@@ -26,7 +26,7 @@ Per agent, it reports:
 That's enough to audit what an agent did, notice an unexpected domain or port,
 or track resource use over time. OpenClaw, Claude Code, Codex, Gemini, aider
 and [others](#agents-included) are recognized by default; add any process by
-name. Built on [yeet](https://yeet.cx) and eBPF.
+name. Built on [yeet](https://yeet.cx/?utm_source=github&utm_medium=readme&utm_campaign=agentcap) and eBPF.
 
 ## Quickstart
 
