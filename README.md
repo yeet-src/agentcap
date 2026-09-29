@@ -1,5 +1,9 @@
 # agentcap
 
+<p>
+  <a href="https://discord.gg/JxVseaAVAU"><img src="https://img.shields.io/badge/chat-Discord-5865F2" alt="Discord"></a>
+</p>
+
 A Prometheus exporter for **AI-agent activity** — OpenClaw, Claude Code,
 Codex, Gemini, aider, omp, pi, grok, opencode, or any set you configure —
 captured in-kernel with eBPF and served by a [yeet](https://yeet.cx)
@@ -260,3 +264,9 @@ service.toml             yeet service: units, web server, /metrics route
 deploy/                  prometheus.yml, docker-compose, grafana provisioning
 Makefile                 build + run/deploy lifecycle (make up, deploy, …)
 ```
+
+---
+
+Built with [yeet](https://yeet.cx/docs/?utm_source=github&utm_medium=readme&utm_campaign=agentcap),
+a JS runtime for writing eBPF programs and live system dashboards on Linux.
+Join us on [Discord](https://discord.gg/JxVseaAVAU?utm_source=github&utm_medium=readme&utm_campaign=agentcap).
