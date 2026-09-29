@@ -7,10 +7,26 @@
   <a href="https://discord.gg/JxVseaAVAU"><img src="https://img.shields.io/badge/chat-Discord-5865F2" alt="Discord"></a>
 </p>
 
-A Prometheus exporter for **AI-agent activity** — OpenClaw, Claude Code,
-Codex, Gemini, aider, omp, pi, grok, opencode, or any set you configure —
-captured in-kernel with eBPF and served by a [yeet](https://yeet.cx)
-service. A provisioned Grafana dashboard rides along.
+**AI coding agents run shell commands, read and write your files, and make
+network calls — usually with zero visibility.** agentcap watches all of it
+from the kernel and turns it into per-agent Prometheus metrics + a Grafana
+dashboard. No SDK, no code changes, no per-agent setup — it even catches
+agents that were already running, and attributes every child process (the
+`bash` / `node` / `curl` a tool spawns) back to the agent that launched it.
+
+**See, per agent:**
+
+- 🧰 **Tools it ran** — every binary it exec'd
+- 🌐 **Where it talked** — domains queried and destination ports
+- 📁 **Files it opened** — paths, read vs. write
+- ⚙️ **What it used** — CPU, network bytes, file I/O, process churn
+
+Use it to **audit what your agents actually did**, catch anomalies (an agent
+reaching an unexpected domain or port), and track each one's footprint.
+
+Works out of the box with OpenClaw, Claude Code, Codex, Gemini, aider and
+[more](#agents-included) — or any process you name. Built on
+[yeet](https://yeet.cx) + eBPF; a provisioned Grafana dashboard rides along.
 
 ![Agent Activity dashboard — overview: hero stats, tracked tasks, tool execs/s, which agent ran what, top tools, CPU by agent](docs/dashboard-overview.png)
 
