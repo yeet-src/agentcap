@@ -7,26 +7,24 @@
   <a href="https://discord.gg/JxVseaAVAU"><img src="https://img.shields.io/badge/chat-Discord-5865F2" alt="Discord"></a>
 </p>
 
-**AI coding agents run shell commands, read and write your files, and make
-network calls — usually with zero visibility.** agentcap watches all of it
-from the kernel and turns it into per-agent Prometheus metrics + a Grafana
-dashboard. No SDK, no code changes, no per-agent setup — it even catches
-agents that were already running, and attributes every child process (the
-`bash` / `node` / `curl` a tool spawns) back to the agent that launched it.
+AI coding agents run shell commands, open files, and make network calls on
+your machine, and most of it goes unseen. agentcap records that activity from
+the kernel with eBPF and exposes it as per-agent Prometheus metrics with a
+Grafana dashboard. It needs no SDK or changes to the agents, works on agents
+that are already running, and attributes child processes (a `bash` or `curl` a
+tool spawns) to the agent that launched them.
 
-**See, per agent:**
+Per agent, it reports:
 
-- 🧰 **Tools it ran** — every binary it exec'd
-- 🌐 **Where it talked** — domains queried and destination ports
-- 📁 **Files it opened** — paths, read vs. write
-- ⚙️ **What it used** — CPU, network bytes, file I/O, process churn
+- tools run — each binary the agent exec'd
+- domains queried and destination ports
+- files opened, read vs. write
+- CPU time, network bytes, file I/O, and process churn
 
-Use it to **audit what your agents actually did**, catch anomalies (an agent
-reaching an unexpected domain or port), and track each one's footprint.
-
-Works out of the box with OpenClaw, Claude Code, Codex, Gemini, aider and
-[more](#agents-included) — or any process you name. Built on
-[yeet](https://yeet.cx) + eBPF; a provisioned Grafana dashboard rides along.
+That's enough to audit what an agent did, notice an unexpected domain or port,
+or track resource use over time. OpenClaw, Claude Code, Codex, Gemini, aider
+and [others](#agents-included) are recognized by default; add any process by
+name. Built on [yeet](https://yeet.cx) and eBPF.
 
 ![Agent Activity dashboard — overview: hero stats, tracked tasks, tool execs/s, which agent ran what, top tools, CPU by agent](docs/dashboard-overview.png)
 
