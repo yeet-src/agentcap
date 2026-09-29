@@ -1,4 +1,4 @@
-<!-- yeet:user-friendly-title: Watch what your AI agents do -->
+<!-- yeet:user-friendly-title: Per-agent activity monitor -->
 # agentcap
 
 <p align="center">
@@ -6,6 +6,8 @@
   <img src="https://img.shields.io/badge/built%20with-yeet%20%2B%20eBPF-8A2BE2" alt="yeet + eBPF">
   <a href="https://discord.gg/JxVseaAVAU"><img src="https://img.shields.io/badge/chat-Discord-5865F2" alt="Discord"></a>
 </p>
+
+![Agent Activity dashboard — overview: hero stats, tracked tasks, tool execs/s, which agent ran what, top tools, CPU by agent](docs/dashboard-overview.png)
 
 AI coding agents run shell commands, open files, and make network calls on
 your machine, and most of it goes unseen. agentcap records that activity from
@@ -25,18 +27,6 @@ That's enough to audit what an agent did, notice an unexpected domain or port,
 or track resource use over time. OpenClaw, Claude Code, Codex, Gemini, aider
 and [others](#agents-included) are recognized by default; add any process by
 name. Built on [yeet](https://yeet.cx) and eBPF.
-
-![Agent Activity dashboard — overview: hero stats, tracked tasks, tool execs/s, which agent ran what, top tools, CPU by agent](docs/dashboard-overview.png)
-
-```
- kernel (eBPF)                yeet service "agentcap"              observability
-┌────────────────────┐   ┌──────────────────────────────────┐   ┌──────────────┐
-│ tracepoints (sched)│   │ collector.js  (shared worker)    │   │ Prometheus   │
-│ lsm/socket_*       ├──▶│  BPF maps → Telemetry registry   │◀──┤  :9464/metrics
-│ fexit/vfs_*,recvmsg│   │ main.js       keeps it alive     │   │ Grafana      │
-│  — zero kprobes    │   │ scrape.js     per-request render │   │  :3000       │
-└────────────────────┘   └──────────────────────────────────┘   └──────────────┘
-```
 
 ## Quickstart
 
