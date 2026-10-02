@@ -1,6 +1,6 @@
 {
   "uid": "agentcap",
-  "title": "Agent Activity",
+  "title": "agentcap - AI agent activity",
   "description": "AI-agent process-tree activity captured by the agentcap eBPF exporter (yeet).",
   "tags": [
     "agents",

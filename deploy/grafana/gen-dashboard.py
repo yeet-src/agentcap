@@ -670,7 +670,7 @@ panels.append({
 
 dashboard = {
     "uid": "agentcap",
-    "title": "Agent Activity",
+    "title": "agentcap - AI agent activity",
     "description": "AI-agent process-tree activity captured by the agentcap eBPF exporter (yeet).",
     "tags": ["agents", "ebpf", "yeet"],
     "schemaVersion": 39, "version": 8, "editable": True, "graphTooltip": 1,
