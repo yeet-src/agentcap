@@ -670,9 +670,10 @@ panels.append({
 
 dashboard = {
     "uid": "agentcap",
-    "title": "Agent Activity",
+    "title": "agentcap - AI agent activity",
     "description": "AI-agent process-tree activity captured by the agentcap eBPF exporter (yeet).",
-    "tags": ["agents", "ebpf", "yeet"],
+    "tags": ["ai-agents", "claude-code", "coding-agents", "ebpf",
+             "linux", "prometheus", "security", "yeet"],
     "schemaVersion": 39, "version": 8, "editable": True, "graphTooltip": 1,
     "time": {"from": "now-1h", "to": "now"},
     "refresh": "10s",
